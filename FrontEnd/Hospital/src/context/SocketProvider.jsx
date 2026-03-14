@@ -6,47 +6,90 @@ export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  /* ================================
+     SOCKET EVENT HANDLERS
+  ================================= */
+
+  const handleConnect = useCallback(() => {
+    setIsConnected((prev) => {
+      if (!prev) return true;
+      return prev;
+    });
+  }, []);
+
+  const handleDisconnect = useCallback(() => {
+    setIsConnected((prev) => {
+      if (prev) return false;
+      return prev;
+    });
+  }, []);
+
+  const handleConnectError = useCallback((err) => {
+    console.warn("Socket connect_error:", err?.message || err);
+  }, []);
+
+  /* ================================
+     SOCKET INITIALIZATION
+  ================================= */
+
   useEffect(() => {
     const socket = io(import.meta.env.VITE_API_URL, {
       withCredentials: true,
       autoConnect: false,
       transports: ["websocket"],
-    });
-
-    socket.on("connect", () => {
-      setIsConnected(true);
-    });
-
-    socket.on("disconnect", () => {
-      setIsConnected(false);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.warn("Socket connect_error:", err?.message || err);
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
     });
 
     socketRef.current = socket;
 
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+
     return () => {
-      socket.removeAllListeners();
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+
       socket.disconnect();
       socketRef.current = null;
       setIsConnected(false);
     };
-  }, []);
+  }, [handleConnect, handleDisconnect, handleConnectError]);
+
+  /* ================================
+     CONNECT FUNCTION
+  ================================= */
 
   const connectSocket = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) return;
-    if (!socket.connected) socket.connect();
+
+    if (!socket.connected) {
+      socket.connect();
+    }
   }, []);
+
+  /* ================================
+     DISCONNECT FUNCTION
+  ================================= */
 
   const disconnectSocket = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) return;
-    if (socket.connected) socket.disconnect();
+
+    if (socket.connected) {
+      socket.disconnect();
+    }
+
     setIsConnected(false);
   }, []);
+
+  /* ================================
+     CONTEXT PROVIDER
+  ================================= */
 
   return (
     <SocketContext.Provider
