@@ -225,6 +225,24 @@ const DoctorQueue = () => {
 
       const patientId = tokenData?.patient?._id;
 
+      if(token?.consultationType ==="REMOTE" && token?._id){
+        try {
+          const consultRes = await startConsulationApi({
+            tokenId: tokenData._id
+          });
+      
+          const roomId = consultRes?.data?.roomId;
+
+          if(roomId){
+            sessionStorage.setItem("roomId", roomId);
+            setRoomId(roomId);
+            setVideoOpen(true);
+          }
+        } catch (error) {
+          console.log(error);
+        }
+      }
+
       if (patientId) {
         setIsLoadingVisits(true);
 
@@ -245,25 +263,7 @@ const DoctorQueue = () => {
         } finally {
           setIsLoadingVisits(false);
         }
-      }
-
-       if(token?.consultationType ==="REMOTE" && token?._id){
-        try {
-          const consultRes = await startConsulationApi({
-            tokenId: tokenData._id
-          });
-      
-          const roomId = consultRes?.data?.roomId;
-
-          if(roomId){
-            sessionStorage.setItem("roomId", roomId);
-            setRoomId(roomId);
-            setVideoOpen(true);
-          }
-        } catch (error) {
-          console.log(error);
-        }
-      }
+      } 
       
       showToast({
         type: "success",
