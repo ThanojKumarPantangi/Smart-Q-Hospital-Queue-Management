@@ -225,7 +225,7 @@ const DoctorQueue = () => {
 
       const patientId = tokenData?.patient?._id;
 
-      if(token?.consultationType ==="REMOTE" && token?._id){
+      if(tokenData?.consultationType === "REMOTE" && tokenData?._id){
         try {
           const consultRes = await startConsulationApi({
             tokenId: tokenData._id
