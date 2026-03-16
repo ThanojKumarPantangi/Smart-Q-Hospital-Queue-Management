@@ -6,64 +6,120 @@ const api = axios.create({
   withCredentials: true,
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error) => {
+  failedQueue.forEach((p) => {
+    if (error) {
+      p.reject(error);
+    } else {
+      p.resolve();
+    }
+  });
+
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     const originalRequest = error.config;
 
     if (!error.response) {
       showToast({
         type: "error",
-        message: "Network error. Please check your internet connection.",
+        message: "Network error. Please check your connection.",
       });
       return Promise.reject(error);
     }
 
     const status = error.response.status;
+    const code = error.response.data?.code;
     const url = originalRequest?.url || "";
 
-    const isMfaRoute =
-      window.location.pathname === "/setup-mfa" ||
-      window.location.pathname === "/verify-mfa";
+    const isAuthEndpoint =
+      url.includes("/api/auth/login") ||
+      url.includes("/api/auth/refresh") ||
+      url.includes("/api/auth/me");
 
-    //  CRITICAL FIX
-    if (status === 401 && url.includes("/api/auth/me") && isMfaRoute) {
-      return Promise.reject(error); 
-    }
+    /* ---------- TOKEN EXPIRED → REFRESH ---------- */
 
     const shouldRefresh =
       status === 401 &&
+      code === "TOKEN_EXPIRED" &&
       !originalRequest._retry &&
-      !url.includes("/api/auth/login") &&
-      !url.includes("/api/auth/refresh") 
+      !isAuthEndpoint;
 
     if (shouldRefresh) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({
+            resolve: () => resolve(api(originalRequest)),
+            reject,
+          });
+        });
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         await api.post("/api/auth/refresh");
+
+        processQueue(null);
+
         return api(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError);
+
         try {
           await api.post("/api/auth/logout");
         } catch {
           // 
         }
 
-        const message =
-          refreshError?.response?.data?.message ||
-          "Session expired. Please login again.";
+        showToast({
+          type: "error",
+          message: "Session expired. Please login again.",
+        });
 
-        showToast({ type: "error", message });
+        window.location.href = "/login";
 
-        // window.location.href = "/login";
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
+    }
+
+    /* ---------- OTHER AUTH ERRORS ---------- */
+
+    const isAuthError =
+      status === 401 &&
+      code &&
+      code !== "TOKEN_EXPIRED" &&
+      !isAuthEndpoint;
+
+    if (isAuthError) {
+      try {
+        await api.post("/api/auth/logout");
+      } catch {
+        // 
+      }
+
+      showToast({
+        type: "error",
+        message: "Authentication failed. Please login again.",
+      });
+
+      window.location.href = "/login";
+
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);
   }
 );
-
 
 export default api;

@@ -33,13 +33,13 @@ export const verifyMfaController = async (req, res) => {
     res.cookie(
       "accessToken",
       accessToken,
-      getCookieOptions(15 * 60 * 1000)
+      getCookieOptions(24 * 60 * 60 * 1000)
     );
 
     res.cookie(
       "refreshToken",
       refreshToken,
-      getCookieOptions(7 * 24 * 60 * 60 * 1000)
+      getCookieOptions(8 * 24 * 60 * 60 * 1000)
     );
 
     return res.status(200).json({
@@ -356,13 +356,13 @@ export const recoverMfaController = async (req, res) => {
     res.cookie(
       "accessToken",
       tokens.accessToken,
-      getCookieOptions(15 * 60 * 1000)
+      getCookieOptions(24 * 60 * 60 * 1000)
     );
 
     res.cookie(
       "refreshToken",
       tokens.refreshToken,
-      getCookieOptions(7 * 24 * 60 * 60 * 1000)
+      getCookieOptions(8 * 24 * 60 * 60 * 1000)
     );
 
     return res.status(200).json({

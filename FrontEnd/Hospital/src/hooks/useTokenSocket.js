@@ -9,92 +9,106 @@ export function useTokenSocket({
   onCompleted,
   onNoShow,
   onQueueUpdate,
-
   onNewMessage,
   onMissedMessages,
-
 }) {
   const joinedDeptRef = useRef(null);
 
-  /* ---------- JOIN / LEAVE DEPARTMENT (RECONNECT SAFE) ---------- */
+  /* ---------- JOIN DEPARTMENT (ONLY ON CHANGE) ---------- */
   useEffect(() => {
     if (!socketRef?.current) return;
+
+    const socket = socketRef.current;
+    const deptId = departmentId || token?.departmentId;
+
+    if (!deptId) return;
+
+    // prevent duplicate join
+    if (joinedDeptRef.current === deptId) return;
+
+    // leave previous department if switching
+    if (joinedDeptRef.current) {
+      socket.emit("leave-department", joinedDeptRef.current);
+    }
+
+    socket.emit("join-department", deptId);
+    joinedDeptRef.current = deptId;
+
+  }, [departmentId, token?.departmentId,socketRef]);
+
+
+
+  /* ---------- SOCKET RECONNECT HANDLING ---------- */
+  useEffect(() => {
+    if (!socketRef?.current) return;
+
     const socket = socketRef.current;
 
-    const joinDepartment = () => {
-      const deptId = departmentId||token?.departmentId;
-      if (!deptId) return;
-
-      if (joinedDeptRef.current !== deptId) {
+    const handleReconnect = () => {
+      const deptId = joinedDeptRef.current;
+      if (deptId) {
         socket.emit("join-department", deptId);
-        joinedDeptRef.current = deptId;
       }
     };
 
-    const leaveDepartment = () => {
-      if (joinedDeptRef.current) {
-        socket.emit("leave-department", joinedDeptRef.current);
-        joinedDeptRef.current = null;
-      }
-    };
-
-    joinDepartment();
-    socket.on("connect", joinDepartment);
-    socket.on("disconnect", leaveDepartment);
+    socket.on("connect", handleReconnect);
 
     return () => {
-      socket.off("connect", joinDepartment);
-      socket.off("disconnect", leaveDepartment);
-      leaveDepartment();
+      socket.off("connect", handleReconnect);
     };
-  }, [departmentId,socketRef,token,token?.departmentId]);
+  }, [socketRef]);
+
+
 
   /* ---------- TOKEN EVENTS ---------- */
   useEffect(() => {
-  if (!socketRef?.current) return;
-  const socket = socketRef.current;
+    if (!socketRef?.current) return;
 
-  const handleCalled = payload => onCalled?.(payload);
-  const handleSkipped = payload => onSkipped?.(payload);
-  const handleCompleted = payload => onCompleted?.(payload);
-  const handleNoShow = payload => onNoShow?.(payload);
-  const handleQueue = payload => onQueueUpdate?.(payload);
+    const socket = socketRef.current;
 
-  socket.on("TOKEN_CALLED", handleCalled);
-  socket.on("TOKEN_SKIPPED", handleSkipped);
-  socket.on("TOKEN_COMPLETED", handleCompleted);
-  socket.on("TOKEN_NO_SHOW", handleNoShow);
-  socket.on("QUEUE_POSITION_UPDATE", handleQueue);
+    const handleCalled = (payload) => onCalled?.(payload);
+    const handleSkipped = (payload) => onSkipped?.(payload);
+    const handleCompleted = (payload) => onCompleted?.(payload);
+    const handleNoShow = (payload) => onNoShow?.(payload);
+    const handleQueue = (payload) => onQueueUpdate?.(payload);
 
-  return () => {
-    socket.off("TOKEN_CALLED", handleCalled);
-    socket.off("TOKEN_SKIPPED", handleSkipped);
-    socket.off("TOKEN_COMPLETED", handleCompleted);
-    socket.off("TOKEN_NO_SHOW", handleNoShow);
-    socket.off("QUEUE_POSITION_UPDATE", handleQueue);
-  };
-}, [socketRef, onCalled, onSkipped, onCompleted, onNoShow, onQueueUpdate]);
+    socket.on("TOKEN_CALLED", handleCalled);
+    socket.on("TOKEN_SKIPPED", handleSkipped);
+    socket.on("TOKEN_COMPLETED", handleCompleted);
+    socket.on("TOKEN_NO_SHOW", handleNoShow);
+    socket.on("QUEUE_POSITION_UPDATE", handleQueue);
 
-/* ---------- MESSAGE EVENTS ---------- */
-useEffect(() => {
-  if (!socketRef?.current) return;
+    return () => {
+      socket.off("TOKEN_CALLED", handleCalled);
+      socket.off("TOKEN_SKIPPED", handleSkipped);
+      socket.off("TOKEN_COMPLETED", handleCompleted);
+      socket.off("TOKEN_NO_SHOW", handleNoShow);
+      socket.off("QUEUE_POSITION_UPDATE", handleQueue);
+    };
+  }, [onCalled, onSkipped, onCompleted, onNoShow, onQueueUpdate,socketRef]);
 
-  const socket = socketRef.current;
 
-  const handleNewMessage = (message) => {
-    onNewMessage?.(message);
-  };
 
-  const handleMissedMessages = (messages = []) => {
-    onMissedMessages?.(messages);
-  };
+  /* ---------- MESSAGE EVENTS ---------- */
+  useEffect(() => {
+    if (!socketRef?.current) return;
 
-  socket.on("messages:new", handleNewMessage);
-  socket.on("messages:missed", handleMissedMessages);
+    const socket = socketRef.current;
 
-  return () => {
-    socket.off("messages:new", handleNewMessage);
-    socket.off("messages:missed", handleMissedMessages);
-  };
-}, [socketRef, onNewMessage, onMissedMessages]);
+    const handleNewMessage = (message) => {
+      onNewMessage?.(message);
+    };
+
+    const handleMissedMessages = (messages = []) => {
+      onMissedMessages?.(messages);
+    };
+
+    socket.on("messages:new", handleNewMessage);
+    socket.on("messages:missed", handleMissedMessages);
+
+    return () => {
+      socket.off("messages:new", handleNewMessage);
+      socket.off("messages:missed", handleMissedMessages);
+    };
+  }, [onNewMessage, onMissedMessages,socketRef]);
 }

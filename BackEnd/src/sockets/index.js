@@ -114,9 +114,11 @@ export const initSocket = (server) => {
         socket.leave(socket.currentDepartment);
       }
 
-      socket.join(departmentId);
-      socket.currentDepartment = departmentId;
-      console.log(`Socket ${socket.id} join department ${departmentId}`);
+      if (!socket.rooms.has(departmentId)) {
+        socket.join(departmentId);
+        socket.currentDepartment = departmentId;
+        console.log(`Socket ${socket.id} join department ${departmentId}`);
+      }
 
       try {
 

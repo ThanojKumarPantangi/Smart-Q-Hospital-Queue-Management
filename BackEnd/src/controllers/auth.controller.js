@@ -33,13 +33,13 @@ export const login = async (req, res) => {
     res.cookie(
       "accessToken",
       accessToken,
-      getCookieOptions(15 * 60 * 1000)
+      getCookieOptions(24 * 60 * 60 * 1000)
     );
 
     res.cookie(
       "refreshToken",
       refreshToken,
-      getCookieOptions(7 * 24 * 60 * 60 * 1000)
+      getCookieOptions(8 * 24 * 60 * 60 * 1000)
     );
 
 
@@ -119,10 +119,13 @@ export const doctorSignupController = async (req, res) => {
 
 export const refreshTokenController = async (req, res) => {
   try {
-    const token = req.cookies.refreshToken;
+    const token = req.cookies?.refreshToken;
 
     if (!token) {
-      return res.status(401).json({ message: "No refresh token" });
+      return res.status(401).json({
+        message: "Refresh token missing",
+        code: "NO_REFRESH_TOKEN",
+      });
     }
 
     const tokens = await rotateRefreshToken(token);
@@ -130,19 +133,20 @@ export const refreshTokenController = async (req, res) => {
     res.cookie(
       "accessToken",
       tokens.accessToken,
-      getCookieOptions(15 * 60 * 1000)
+      getCookieOptions(24 * 60 * 60 * 1000)
     );
 
     res.cookie(
       "refreshToken",
       tokens.refreshToken,
-      getCookieOptions(7 * 24 * 60 * 60 * 1000)
+      getCookieOptions(8 * 24 * 60 * 60 * 1000)
     );
 
-
     return res.json({ success: true });
+
   } catch (error) {
-    if (error.message === "Refresh token reuse detected") {
+
+    if (error.message === "REFRESH_TOKEN_REUSE_DETECTED") {
       return res.status(401).json({
         message:
           "Security alert: your session may have been compromised. Please login again.",
@@ -150,10 +154,20 @@ export const refreshTokenController = async (req, res) => {
       });
     }
 
-    if (error.message === "Session expired") {
+    if (
+      error.message === "SESSION_EXPIRED" ||
+      error.message === "REFRESH_TOKEN_EXPIRED"
+    ) {
       return res.status(401).json({
         message: "Session expired. Please login again.",
         code: "SESSION_EXPIRED",
+      });
+    }
+
+    if (error.message === "INVALID_REFRESH_TOKEN") {
+      return res.status(403).json({
+        message: "Invalid refresh token",
+        code: "INVALID_REFRESH_TOKEN",
       });
     }
 

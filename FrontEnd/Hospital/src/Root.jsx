@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
-import { AuthProvider } from "./context/AuthProvider";
+import { AuthProvider } from "./context/AuthProvider.jsx";
 import { SocketProvider } from "./context/SocketProvider.jsx";
 
 import App from "./App.jsx";

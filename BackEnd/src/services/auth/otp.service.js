@@ -41,7 +41,7 @@ export const sendOTP = async (email) => {
 
   await OTP.create({
     email,
-    phone: user.phone, // derived, not trusted
+    phone: user.phone, 
     otp: hashedOtp,
     expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000),
     attempts: 0,

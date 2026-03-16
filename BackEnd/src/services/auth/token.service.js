@@ -46,82 +46,96 @@ export const issueTokens = async (user, session) => {
   return { accessToken, refreshToken };
 };
 
-
 export const rotateRefreshToken = async (incomingToken) => {
-  const decoded = verifyRefreshToken(incomingToken);
+  try {
+    const decoded = verifyRefreshToken(incomingToken);
 
-  if (!decoded?.id || !decoded?.jti || !decoded?.sessionId) {
-    throw new Error("Invalid refresh token");
-  }
+    if (!decoded?.id || !decoded?.jti || !decoded?.sessionId) {
+      throw new Error("INVALID_REFRESH_TOKEN");
+    }
 
-  // Let session service validate everything
-  const session = await validateSession(decoded.sessionId, decoded.id);
+    // Validate session
+    const session = await validateSession(decoded.sessionId, decoded.id);
 
-  const incomingHash = crypto
-    .createHash("sha256")
-    .update(incomingToken)
-    .digest("hex");
+    const incomingHash = crypto
+      .createHash("sha256")
+      .update(incomingToken)
+      .digest("hex");
 
-  const newJti = uuidv4();
+    const newJti = uuidv4();
 
-  const stored = await RefreshToken.findOneAndUpdate(
-    {
+    const storedToken = await RefreshToken.findOneAndUpdate(
+      {
+        user: decoded.id,
+        session: decoded.sessionId,
+        jti: decoded.jti,
+        revoked: false,
+        tokenHash: incomingHash,
+      },
+      {
+        revoked: true,
+        replacedByJti: newJti,
+      },
+      { new: true }
+    );
+
+    // Refresh token reuse detection
+    if (!storedToken) {
+      await revokeAllUserSessions(decoded.id);
+      throw new Error("REFRESH_TOKEN_REUSE_DETECTED");
+    }
+
+    // Expired refresh token
+    if (storedToken.expiresAt < new Date()) {
+      await revokeAllUserSessions(decoded.id);
+      throw new Error("SESSION_EXPIRED");
+    }
+
+    const newAccessPayload = {
+      id: decoded.id,
+      role: session.role,
+      sessionId: session._id,
+    };
+
+    const newRefreshPayload = {
+      id: decoded.id,
+      role: session.role,
+      sessionId: session._id,
+      jti: newJti,
+    };
+
+    const newAccessToken = generateAccessToken(newAccessPayload);
+    const newRefreshToken = generateRefreshToken(newRefreshPayload);
+
+    const newHash = crypto
+      .createHash("sha256")
+      .update(newRefreshToken)
+      .digest("hex");
+
+    await RefreshToken.create({
       user: decoded.id,
-      session: decoded.sessionId,
-      jti: decoded.jti,
+      session: session._id,
+      jti: newJti,
+      tokenHash: newHash,
       revoked: false,
-      tokenHash: incomingHash,
-    },
-    {
-      revoked: true,
-      replacedByJti: newJti,
-    },
-    { new: true }
-  );
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
-  // Token reuse detection
-  if (!stored) {
-    await revokeAllUserSessions(decoded.id);
-    throw new Error("Refresh token reuse detected");
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+
+  } catch (error) {
+
+    if (error.name === "TokenExpiredError") {
+      throw new Error("REFRESH_TOKEN_EXPIRED");
+    }
+
+    if (error.message) {
+      throw error;
+    }
+
+    throw new Error("REFRESH_ROTATION_FAILED");
   }
-
-  if (stored.expiresAt < new Date()) {
-    await revokeAllUserSessions(decoded.id);
-    throw new Error("Session expired");
-  }
-
-  const newAccessPayload = {
-    id: decoded.id,
-    role: session.role,
-    sessionId: session._id,
-  };
-
-  const newRefreshPayload = {
-    id: decoded.id,
-    role: session.role,
-    sessionId: session._id,
-    jti: newJti,
-  };
-
-  const newAccessToken = generateAccessToken(newAccessPayload);
-  const newRefreshToken = generateRefreshToken(newRefreshPayload);
-
-  const newHash = crypto
-    .createHash("sha256")
-    .update(newRefreshToken)
-    .digest("hex");
-
-  await RefreshToken.create({
-    user: decoded.id,
-    session: session._id,
-    jti: newJti,
-    tokenHash: newHash,
-    revoked: false,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
-
-  return {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-  };
 };
