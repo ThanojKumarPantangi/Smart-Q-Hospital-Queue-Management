@@ -48,7 +48,7 @@ The platform also includes trusted device verification, session control, two-ste
 
 ## Project File Structure
 
-![File Structure](./file-structure.png)
+![File Structure](./project-file-structure.png)
 
 ---
 
