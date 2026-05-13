@@ -46,6 +46,12 @@ The platform also includes trusted device verification, session control, two-ste
 
 ---
 
+## Project File Structure
+
+![File Structure](./file-structure.png)
+
+---
+
 ## Key Features
 
 ### Queue & Consultation Management
